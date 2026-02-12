@@ -1,0 +1,257 @@
+```
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spray Mix Pro</title>
+
+<style>
+:root{
+  --bg:#f4f4f4;
+  --card:white;
+  --text:#111;
+  --btn:#2e7d32;
+}
+
+.dark{
+  --bg:#121212;
+  --card:#1e1e1e;
+  --text:#eee;
+  --btn:#4caf50;
+}
+
+body{
+  font-family:Arial, sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  padding:18px;
+  max-width:450px;
+  margin:auto;
+}
+
+h1{text-align:center}
+
+.row{
+  background:var(--card);
+  padding:10px;
+  border-radius:6px;
+  margin-bottom:10px;
+}
+
+input,select{
+  width:100%;
+  padding:8px;
+  margin:4px 0;
+}
+
+button{
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  background:var(--btn);
+  color:white;
+  border:none;
+  border-radius:6px;
+}
+
+.small{font-size:13px;background:#666}
+
+.result{
+  background:var(--card);
+  padding:10px;
+  border-radius:6px;
+  margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🌽 Spray Mix Pro</h1>
+
+<button onclick="toggleDark()">🌙 Toggle Dark Mode</button>
+
+<div class="row">
+Tank Size (gal)
+<input id="tank" type="number">
+
+GPA (gal/acre)
+<input id="gpa" type="number">
+</div>
+
+<h3>Chemicals</h3>
+<div id="chemList"></div>
+
+<button onclick="addChem()">+ Add Chemical</button>
+<button onclick="calculate()">Calculate Mix</button>
+
+<div class="result" id="results"></div>
+
+<hr>
+
+<h3>⭐ Saved Mixes</h3>
+
+<input id="mixName" placeholder="Mix name">
+<button class="small" onclick="saveMix()">Save Current</button>
+
+<select id="savedList"></select>
+<button class="small" onclick="loadMix()">Load</button>
+<button class="small" onclick="deleteMix()">Delete</button>
+
+<script>
+
+// ===== Unit conversions (all based on ounces) =====
+const factors = {
+  oz:1,
+  pt:16,
+  qt:32,
+  gal:128,
+  lb:16
+};
+
+function convert(val, from, to){
+  return (val * factors[from]) / factors[to];
+}
+
+// ===== Add chemical row =====
+function addChem(name="", rate="", unit="oz", outUnit="oz"){
+  const div=document.createElement("div");
+  div.className="row";
+
+  div.innerHTML=`
+  Name
+  <input class="name" value="${name}">
+
+  Rate per acre
+  <input class="rate" type="number" value="${rate}">
+
+  Rate Unit
+  <select class="unit">
+    ${makeOptions(unit)}
+  </select>
+
+  Output Unit
+  <select class="outUnit">
+    ${makeOptions(outUnit)}
+  </select>
+
+  <button onclick="this.parentElement.remove()">Remove</button>
+  `;
+
+  chemList.appendChild(div);
+}
+
+function makeOptions(selected){
+  return ["oz","pt","qt","gal","lb"]
+    .map(u=>`<option ${u===selected?"selected":""}>${u}</option>`)
+    .join("");
+}
+
+// ===== Calculate =====
+function calculate(){
+  const tank=parseFloat(tankInput.value);
+  const gpa=parseFloat(gpaInput.value);
+
+  if(!tank||!gpa) return;
+
+  const acres=tank/gpa;
+
+  let output=`Acres covered: <b>${acres.toFixed(2)}</b><br><br>`;
+
+  document.querySelectorAll("#chemList .row").forEach(row=>{
+    const name=row.querySelector(".name").value||"Chemical";
+    const rate=parseFloat(row.querySelector(".rate").value);
+    const unit=row.querySelector(".unit").value;
+    const out=row.querySelector(".outUnit").value;
+
+    if(!rate) return;
+
+    const total = convert(rate*acres, unit, out);
+
+    output+=`${name}: <b>${total.toFixed(2)} ${out}</b><br>`;
+  });
+
+  results.innerHTML=output;
+}
+
+// ===== Save/Load =====
+function saveMix(){
+  const name=mixName.value.trim();
+  if(!name) return alert("Name your mix");
+
+  const mix={
+    tank:tankInput.value,
+    gpa:gpaInput.value,
+    chems:[]
+  };
+
+  document.querySelectorAll("#chemList .row").forEach(row=>{
+    mix.chems.push({
+      name:row.querySelector(".name").value,
+      rate:row.querySelector(".rate").value,
+      unit:row.querySelector(".unit").value,
+      outUnit:row.querySelector(".outUnit").value
+    });
+  });
+
+  localStorage.setItem("mix_"+name,JSON.stringify(mix));
+  loadSavedList();
+}
+
+function loadMix(){
+  const key=savedList.value;
+  if(!key) return;
+
+  const mix=JSON.parse(localStorage.getItem(key));
+
+  tankInput.value=mix.tank;
+  gpaInput.value=mix.gpa;
+
+  chemList.innerHTML="";
+  mix.chems.forEach(c=>addChem(c.name,c.rate,c.unit,c.outUnit));
+}
+
+function deleteMix(){
+  localStorage.removeItem(savedList.value);
+  loadSavedList();
+}
+
+function loadSavedList(){
+  savedList.innerHTML="";
+  Object.keys(localStorage).forEach(k=>{
+    if(k.startsWith("mix_")){
+      const o=document.createElement("option");
+      o.value=k;
+      o.text=k.replace("mix_","");
+      savedList.appendChild(o);
+    }
+  });
+}
+
+// ===== Dark mode =====
+function toggleDark(){
+  document.body.classList.toggle("dark");
+  localStorage.setItem("dark", document.body.classList.contains("dark"));
+}
+
+if(localStorage.getItem("dark")==="true"){
+  document.body.classList.add("dark");
+}
+
+// ===== Init =====
+const tankInput=document.getElementById("tank");
+const gpaInput=document.getElementById("gpa");
+const results=document.getElementById("results");
+const chemList=document.getElementById("chemList");
+const mixName=document.getElementById("mixName");
+const savedList=document.getElementById("savedList");
+
+addChem();
+loadSavedList();
+
+</script>
+
+</body>
+</html>
+
+```
